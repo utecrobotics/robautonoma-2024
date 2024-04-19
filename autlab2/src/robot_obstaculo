@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import rospy
+import numpy as np
+from sensor_msgs.msg import LaserScan
+from autlab3.msg import ArrayXY
+from nav_msgs.msg import Odometry
+import tf
+
+
+def rotFromQuat(q):
+  """ q = [ex, ey, ez, ew]
+  """
+  return np.array([[2.*(q[3]**2+q[0]**2)-1., 2.*(q[0]*q[1]-q[3]*q[2]), 2.*(q[0]*q[2]+q[3]*q[1])],
+                   [2.*(q[0]*q[1]+q[3]*q[2]), 2.*(q[3]**2+q[1]**2)-1., 2.*(q[1]*q[2]-q[3]*q[0])],
+                   [2.*(q[0]*q[2]-q[3]*q[1]), 2.*(q[1]*q[2]+q[3]*q[0]), 2.*(q[3]**2+q[2]**2)-1.]])
+
+
+def Tlidar_wrt_base():
+  """
+  Sistema del lidar con respecto a base_link (la base del robot)
+  """
+  tflistener = tf.TransformListener()
+  T = np.eye(4)
+  rospy.sleep(0.5)
+  try:
+    (trans, rot) = tflistener.lookupTransform('base_link', 'base_scan', rospy.Time(0))
+    T[0:3,0:3] = rotFromQuat(rot)
+    T[0:3,3] = trans
+  except:
+    pass
+  # Retorna la transformación homogénea del sistema del LiDAR con respecto al
+  # sistema de base del robot.
+  return T
+
+
+if __name__ == "__main__":
+
+  # Transformación del sistema del LiDAR al sistema del Robot
+  T_BL = Tlidar_wrt_base()
+
+  # Tiempo de ejecución del bucle (en Hz)
+  rate = rospy.Rate(1)
+  while not rospy.is_shutdown():
+    # Coordenadas en el sistema del LiDAR
+    x, y = lidar.get_xy()
+    # Conversión a coordenadas homogéneas
+    P = np.ones((4, len(x)))
+    P[0,:] = x
+    P[1,:] = y
+    P[2,:] = np.zeros((1,len(x)))   # El LiDAR mide z=0 en su propio sistema
+                
+    # Conversión de las coordenadas del sistema del LiDAR al sistema del Robot
+    P_robot = T_BL.dot(P)
+    xr = P_robot[0,:]     # x en sistema del robot
+    yr = P_robot[1,:]     # y en el sistema del robot
+
+
+
+    # Esperar
+    rate.sleep()
